@@ -1,0 +1,14 @@
+[package]
+name = "clone-into-closure"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "clone_into_closure"
+path = "src/lib.rs"
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0.96", features = ["full"] }
+quote = "1.0.38"
+proc-macro2 = "1.0.93"
