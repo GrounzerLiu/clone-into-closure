@@ -4,7 +4,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
-use syn::{parse_macro_input, Block, Expr, ExprBlock, ExprCall, ExprMethodCall, ExprPath, ItemFn, Local, LocalInit, Pat, PatIdent, Path, PathArguments, PathSegment, Stmt};
+use syn::{parse_macro_input, Block, Expr, ExprBlock, ExprCall, ExprMethodCall, ExprPath, ItemFn, Local, LocalInit, Pat, PatIdent, PatTuple, Path, PathArguments, PathSegment, Stmt, Token};
 
 #[proc_macro_attribute]
 pub fn clone_into_closure(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -71,34 +71,24 @@ fn iter_expr(expr: &mut Expr) {
         }
         Expr::Closure(closure) => {
             let mut stmts = Vec::new();
-            if let Expr::Block(block) = closure.body.as_mut() {
+            if let Some(Pat::Tuple(PatTuple{ elems, .. })) = closure.inputs.first_mut() {
                 let mut clone_args: Vec<String> = Vec::new();
-
-                if let Some(Stmt::Expr(Expr::Call(ExprCall { func, args, .. }), _)) =
-                    block.block.stmts.first()
-                {
-                    if let Expr::Path(ExprPath { path, .. }) = func.as_ref() {
-                        if let Some(first) = path.segments.first() {
-                            if first.ident == "clone" {
-                                if args.is_empty() {
-                                    panic!("Function clone must have arguments");
-                                }
-                                args.iter().for_each(|arg| {
-                                    if let Expr::Path(ExprPath { path, .. }) = arg {
-                                        if let Some(ident) = path.get_ident() {
-                                            clone_args.push(ident.to_string());
-                                        }
-                                    } else {
-                                        panic!("Not a ident");
-                                    }
-                                });
-                            }
-                        }
+                for elem in elems.iter_mut() {
+                    if let Pat::Ident(PatIdent { ident, .. }) = elem {
+                        clone_args.push(ident.to_string());
+                    } else {
+                        clone_args.clear();
+                        break;
                     }
                 }
 
                 if clone_args.len() > 0 {
-                    block.block.stmts.remove(0);
+                    let mut new_inputs: Punctuated<Pat, Token![,]> = Punctuated::new();
+                    closure.inputs.iter().skip(1).for_each(|pat| {
+                        new_inputs.push(pat.clone());
+                    });
+                    closure.inputs = new_inputs;
+
 
                     clone_args.iter().for_each(|arg| {
                         stmts.push(Stmt::Local(Local {
